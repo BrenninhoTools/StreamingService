@@ -1,0 +1,218 @@
+name: Build
+
+# Tests everything and builds the apps for every platform on each push / pull request.
+# The results are kept as workflow artifacts (Actions tab -> run -> Artifacts).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Protocol unit tests, relay server tests, and the shared app tests, which include
+      # end-to-end runs against a real in-process server.
+      - name: Run tests
+        run: ./gradlew :protocol:jvmTest :server:test :shared:desktopTest --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          if-no-files-found: ignore
+
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            artifact: StreamingService-windows
+            paths: |
+              desktopApp/build/compose/binaries/main/msi/*.msi
+              desktopApp/build/compose/binaries/main/exe/*.exe
+          - name: macOS
+            os: macos-latest
+            artifact: StreamingService-macos
+            paths: |
+              desktopApp/build/compose/binaries/main/dmg/*.dmg
+          - name: Linux
+            os: ubuntu-latest
+            artifact: StreamingService-linux
+            paths: |
+              desktopApp/build/compose/binaries/main/deb/*.deb
+              desktopApp/build/compose/binaries/main/rpm/*.rpm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # jpackage needs WiX 3 to produce .msi / .exe installers on Windows.
+      - name: Ensure WiX Toolset (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue) -and -not (Test-Path "${env:ProgramFiles(x86)}\WiX Toolset v3*")) {
+            choco install wixtoolset --no-progress -y
+          }
+
+      - name: Install packaging tools (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm fakeroot
+
+      - name: Package installers
+        shell: bash
+        run: ./gradlew :desktopApp:packageDistributionForCurrentOS --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.paths }}
+          if-no-files-found: error
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode signing keystore
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      # Signed release APK when keystore secrets exist, otherwise a debug-signed (installable) APK.
+      - name: Build APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ "$HAS_KEYSTORE" = "true" ]; then TASK=assembleRelease; else TASK=assembleDebug; fi
+          ./gradlew :androidApp:$TASK -Papp.versionCode=${{ github.run_number }} --stacktrace
+
+      - name: Name the APK
+        run: |
+          mkdir -p dist
+          cp androidApp/build/outputs/apk/*/*.apk dist/StreamingService-android.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StreamingService-android
+          path: dist/*.apk
+          if-no-files-found: error
+
+  web-and-server:
+    name: Web app + relay server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build web app and server
+        run: ./gradlew :webApp:wasmJsBrowserDistribution :server:installDist --stacktrace
+
+      # Makes sure the Dockerfile keeps working with the build outputs.
+      - name: Build Docker image
+        run: docker build -t streamingservice .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StreamingService-web
+          path: webApp/build/dist/wasmJs/productionExecutable/
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StreamingService-server
+          path: server/build/install/streamingservice-server/
+          if-no-files-found: error
+
+  ios:
+    name: iOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: iosApp
+        run: xcodegen generate
+
+      # Builds an unsigned .ipa. It cannot be installed as-is: sign it yourself (e.g. with your own
+      # Apple developer account, AltStore or Sideloadly) to run it on a device.
+      - name: Build unsigned .ipa
+        working-directory: iosApp
+        run: |
+          xcodebuild \
+            -project StreamingService.xcodeproj \
+            -scheme StreamingService \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/StreamingService.app Payload/
+          zip -qr StreamingService-ios-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StreamingService-ios
+          path: iosApp/StreamingService-ios-unsigned.ipa
+          if-no-files-found: error

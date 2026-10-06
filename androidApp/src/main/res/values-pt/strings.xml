@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StreamingService</string>
+    <string name="capture_channel">Compartilhamento de tela</string>
+    <string name="capture_notification_title">Compartilhando sua tela</string>
+    <string name="capture_notification_text">O StreamingService está transmitindo sua tela. Pare o compartilhamento pelo app.</string>
+</resources>

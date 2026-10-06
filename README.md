@@ -1,2 +1,144 @@
 # StreamingService
-an online screen streaming platform
+
+Share your screen online and let other people watch it with a short room code.
+One Kotlin codebase (Kotlin Multiplatform + Compose Multiplatform) runs on **Windows, macOS, Linux, Android, iOS and the web**,
+and a small Kotlin relay server connects them, so a host on one device can stream to viewers on any other.
+
+🇧🇷 [Leia em português](README.pt-BR.md)
+
+## What you can do
+
+| Platform | Share your screen | Watch | Output |
+| -------- | :---------------: | :---: | ------ |
+| Windows  | ✅ | ✅ | `.msi`, `.exe` |
+| macOS    | ✅ | ✅ | `.dmg` |
+| Linux (X11) | ✅ | ✅ | `.deb`, `.rpm` |
+| Android  | ✅ (MediaProjection) | ✅ | `.apk` |
+| Web (desktop browsers) | ✅ (`getDisplayMedia`) | ✅ | static site, served by the relay |
+| iOS      | – (needs a ReplayKit extension) | ✅ | unsigned `.ipa` |
+
+Features: room codes and share links (`/?room=ABC123`), optional room password, quality presets,
+live viewer count and bitrate, automatic reconnection (a host that drops keeps its room for 20 s),
+persistent settings, English and Portuguese UI, and **Discord support** (live announcements and a Discord Activity).
+
+## How it works
+
+```text
+ Host (any platform)                Relay server (Ktor)               Viewers (any platform)
+ capture screen → JPEG  ──ws──►  /ws/host      /ws/watch/{code}  ──ws──►  decode → draw
+                                  rooms, fan-out, last-frame replay
+                                  serves the web app, posts to Discord
+```
+
+Frames are JPEG images sent over WebSockets, which keeps one simple transport working identically on every
+target. The trade-off against WebRTC is higher bandwidth and latency (roughly 0.3–1 Mbit/s at the default
+quality) and no audio yet. The wire format is described in [docs/PROTOCOL.md](docs/PROTOCOL.md).
+
+## Quick start
+
+Requires JDK 17+ (21 recommended). Android builds also need the Android SDK (platform 37).
+
+```bash
+# 1. Start the relay server (also serves the web app if you built it, see below)
+./gradlew :server:run                 # listens on http://localhost:8080
+
+# 2. Start a client
+./gradlew :desktopApp:run             # desktop app, or...
+./gradlew :webApp:wasmJsBrowserDevelopmentRun   # web app on its own dev server (set the server address in Settings)
+./gradlew :androidApp:installDebug    # Android (emulator reaches the server at 10.0.2.2:8080)
+```
+
+In the app, open **Settings** and set the **server address** (default `localhost:8080`). Then click **Share my screen**
+on one device and enter the room code under **Watch a stream** on another.
+
+### Run the server with the web app (Docker)
+
+```bash
+./gradlew :server:installDist :webApp:wasmJsBrowserDistribution
+docker build -t streamingservice .
+docker run -p 8080:8080 streamingservice      # open http://localhost:8080
+```
+
+For anything beyond your own machine, put the server behind HTTPS (a reverse proxy such as Caddy or nginx):
+browsers only allow screen capture on secure origins, and clients use `wss://` for non-local addresses.
+
+### Server configuration
+
+All optional, set as environment variables:
+
+| Variable | Default | Meaning |
+| -------- | ------- | ------- |
+| `PORT` | `8080` | Port to listen on |
+| `PUBLIC_URL` | – | Public `https://` address, used for the link in Discord announcements |
+| `DISCORD_WEBHOOK_URL` | – | Enables "X is live" announcements, see [docs/DISCORD.md](docs/DISCORD.md) |
+| `DISCORD_CLIENT_ID` | – | Enables running the web app as a Discord Activity |
+| `STATIC_DIR` | – | Directory with the built web app to serve (the Docker image sets it) |
+| `MAX_ROOMS` | `200` | Rooms that can be live at once |
+| `MAX_VIEWERS_PER_ROOM` | `100` | Viewers per room |
+| `HOST_GRACE_SECONDS` | `20` | How long a room survives a dropped host connection |
+
+## Discord
+
+- **Announcements:** point `DISCORD_WEBHOOK_URL` at a channel webhook and tick *Announce on Discord* in the app.
+  When you go live the server posts your room code and link, and edits the message when you stop.
+  Messages can never ping `@everyone` or roles, and announcements are rate limited.
+- **Activity:** with `DISCORD_CLIENT_ID` set, the web app can run inside a Discord call. Everyone in the call lands
+  in the same room automatically, protected by a secret only the call's participants know.
+
+Setup steps are in [docs/DISCORD.md](docs/DISCORD.md).
+
+## Project layout
+
+```text
+protocol/     Wire protocol shared by clients and server (room codes, messages, frame format)
+server/       Ktor relay server (+ Discord announcer)
+shared/       Kotlin Multiplatform app: UI, transport client, controllers, per-platform capture
+androidApp/   Android app (MediaProjection screen capture lives here)
+desktopApp/   Compose Desktop entry point + installer configuration
+webApp/       Kotlin/Wasm web app (+ Discord Embedded App SDK glue)
+iosApp/       SwiftUI shell around the shared UI (Xcode project generated by XcodeGen)
+assets/icon/  Icon source; tools/generate-icons.ps1 renders every format
+.github/      CI (build.yml)
+```
+
+## Tests
+
+```bash
+./gradlew :protocol:jvmTest :server:test :shared:desktopTest
+```
+
+Covers the protocol, the relay (reconnection, passwords, limits, Discord payloads, static files) and the app logic,
+including end-to-end runs of the real client against the real server over a socket.
+
+## CI
+
+[`.github/workflows/build.yml`](.github/workflows/build.yml) runs the tests and builds Windows, macOS, Linux, Android,
+web + server (including the Docker image) and iOS on every push and pull request. Results are kept as workflow artifacts.
+
+Optional secrets for a signed Android release APK (without them a debug-signed APK is built):
+`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+macOS and Windows installers and the iOS `.ipa` are unsigned.
+
+## Status and known limits
+
+Verified on Windows: all tests above, desktop and Android builds, and the web app running in Chrome (a host page
+streaming to a viewer page through the relay).
+Not yet verified on real hardware: the Android MediaProjection capture at runtime, the Linux/macOS installers,
+the iOS build (needs a Mac, built in CI only), and a live Discord Activity.
+
+Limits: JPEG-over-WebSocket instead of WebRTC, no audio, no accounts (a room is protected by its code and
+optional password), one monitor on desktop, mobile browsers cannot share their screen, and the Android capture keeps
+the orientation it started with. A Discord Activity can always watch; whether it can *share* depends on the screen
+capture permission Discord grants its iframe.
+
+## Icon
+
+The source is [`assets/icon/icon.svg`](assets/icon/icon.svg). To regenerate every raster format (Windows):
+
+```powershell
+pwsh tools/generate-icons.ps1
+```
+
+## License
+
+See [LICENSE](LICENSE).

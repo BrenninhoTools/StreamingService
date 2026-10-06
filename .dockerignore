@@ -1,0 +1,4 @@
+# Only the two build outputs are needed in the image (see Dockerfile).
+*
+!server/build/install
+!webApp/build/dist

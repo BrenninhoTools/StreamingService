@@ -1,0 +1,20 @@
+# Run the relay server + web app:  docker compose up
+# Build the image first, see the Dockerfile.
+services:
+  streamingservice:
+    build: .
+    image: streamingservice
+    ports:
+      - "8080:8080"
+    environment:
+      # Public https address of this server. Used for the "Watch" link in Discord announcements.
+      PUBLIC_URL: ""
+      # Discord channel webhook that receives "X is live" announcements. Leave empty to disable.
+      DISCORD_WEBHOOK_URL: ""
+      # Discord application id, only needed to run the web app as a Discord Activity.
+      DISCORD_CLIENT_ID: ""
+      # Limits
+      MAX_ROOMS: "200"
+      MAX_VIEWERS_PER_ROOM: "100"
+      HOST_GRACE_SECONDS: "20"
+    restart: unless-stopped

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StreamingService</string>
+    <string name="capture_channel">Screen sharing</string>
+    <string name="capture_notification_title">Sharing your screen</string>
+    <string name="capture_notification_text">StreamingService is streaming your screen. Stop sharing from the app.</string>
+</resources>

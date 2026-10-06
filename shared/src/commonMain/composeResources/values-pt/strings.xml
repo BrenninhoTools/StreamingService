@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StreamingService</string>
+    <string name="app_tagline">Compartilhe sua tela online com qualquer pessoa.</string>
+    <string name="home_share">Compartilhar minha tela</string>
+    <string name="home_watch">Assistir a uma transmissão</string>
+    <string name="home_settings">Configurações</string>
+    <string name="running_on">Executando em %1$s</string>
+    <string name="back">Voltar</string>
+    <string name="preview_description">Pré-visualização da transmissão de tela</string>
+    <string name="activity_banner">Discord Activity: todos nesta chamada compartilham uma sala automaticamente.</string>
+
+    <string name="settings_title">Configurações</string>
+    <string name="settings_server">Endereço do servidor</string>
+    <string name="settings_server_hint">O servidor relay que conecta anfitriões e espectadores, ex.: stream.exemplo.com</string>
+    <string name="settings_server_invalid">Isso não parece um endereço de servidor válido.</string>
+    <string name="settings_server_locked">Fixo enquanto roda como Discord Activity.</string>
+    <string name="settings_name">Nome de exibição</string>
+    <string name="settings_quality">Qualidade da transmissão</string>
+    <string name="settings_discord">Anunciar no Discord</string>
+    <string name="settings_discord_desc">Ao iniciar, o servidor publica o código da sala no canal do Discord dele (se tiver um webhook).</string>
+    <string name="quality_low">Baixa</string>
+    <string name="quality_medium">Média</string>
+    <string name="quality_high">Alta</string>
+
+    <string name="host_title">Compartilhar sua tela</string>
+    <string name="host_room_code">Código da sala</string>
+    <string name="host_link">Link para assistir</string>
+    <string name="host_hint">Passe este código para quem deve assistir à sua tela.</string>
+    <string name="host_password">Senha (opcional)</string>
+    <string name="host_preview_empty">A pré-visualização da sua tela aparecerá aqui quando você iniciar.</string>
+    <string name="host_start">Iniciar compartilhamento</string>
+    <string name="host_stop">Parar compartilhamento</string>
+    <string name="host_live">AO VIVO</string>
+    <string name="host_connecting">Conectando…</string>
+    <string name="host_reconnecting">Conexão perdida, reconectando…</string>
+    <string name="host_offline">Sem compartilhar</string>
+    <string name="host_viewers">Espectadores: %1$d</string>
+    <string name="host_bitrate">Taxa de bits: %1$d kbps</string>
+
+    <string name="viewer_title">Assistir a uma transmissão</string>
+    <string name="viewer_enter_code">Código da sala</string>
+    <string name="viewer_join">Entrar</string>
+    <string name="viewer_leave">Sair</string>
+    <string name="viewer_idle">Digite o código de uma sala para começar a assistir.</string>
+    <string name="viewer_connecting">Conectando…</string>
+    <string name="viewer_waiting">Aguardando o anfitrião iniciar o compartilhamento…</string>
+    <string name="viewer_ended">O anfitrião encerrou a transmissão.</string>
+
+    <string name="error_capture_unsupported">O compartilhamento de tela ainda não está disponível neste dispositivo.</string>
+    <string name="error_capture_failed">Falha ao capturar a tela. Tente novamente.</string>
+    <string name="error_permission_denied">O compartilhamento de tela não foi permitido.</string>
+    <string name="error_invalid_server">Verifique o endereço do servidor nas Configurações.</string>
+    <string name="error_invalid_code">Digite um código de sala válido de 6 caracteres.</string>
+    <string name="error_connection_failed">Não foi possível acessar o servidor. Verifique sua conexão e o endereço do servidor.</string>
+    <string name="error_room_not_found">Nenhuma transmissão encontrada com este código.</string>
+    <string name="error_room_taken">Este código de sala já está em uso.</string>
+    <string name="error_room_full">Esta transmissão está lotada.</string>
+    <string name="error_bad_password">Senha incorreta.</string>
+    <string name="error_server_busy">O servidor está ocupado agora. Tente novamente em instantes.</string>
+</resources>
